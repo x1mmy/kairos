@@ -30,9 +30,17 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (request.nextUrl.pathname.startsWith("/app") && !user) {
+  const pathname = request.nextUrl.pathname
+  const isPublic =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/auth") ||
+    pathname === "/favicon.ico"
+
+  if (!isPublic && !user) {
     const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("next", request.nextUrl.pathname)
+    loginUrl.searchParams.set("next", pathname)
     return NextResponse.redirect(loginUrl)
   }
 
@@ -40,5 +48,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }
