@@ -1,7 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { useMemo, useState } from "react"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { useToast } from "@/components/ui/toast"
 
 export type BuilderEntry = {
   id: string
@@ -15,6 +17,7 @@ export type BuilderEntry = {
 }
 
 export function InvoiceBuilder({ periodId, entries, budgetAmount }: { periodId: string; entries: BuilderEntry[]; budgetAmount: number }) {
+  const { pushToast } = useToast()
   const [selected, setSelected] = useState<Record<string, boolean>>(
     Object.fromEntries(entries.map((entry) => [entry.id, true])),
   )
@@ -55,8 +58,12 @@ export function InvoiceBuilder({ periodId, entries, budgetAmount }: { periodId: 
     })
     setLoading(false)
     if (response.ok) {
+      pushToast("Invoices generated successfully.", "success")
       window.location.href = "/invoices"
+      return
     }
+    const payload = await response.json().catch(() => ({}))
+    pushToast(payload.error ?? "Invoice generation failed.", "error")
   }
 
   return (
@@ -79,8 +86,11 @@ export function InvoiceBuilder({ periodId, entries, budgetAmount }: { periodId: 
                         }))
                       }
                     />
-                    <span>
+                    <span className="flex flex-col">
                       {row.title} · {formatDate(row.entry_date)}
+                      <Link href={`/log/${row.id}`} className="text-xs text-slate-500 underline">
+                        Source entry: {row.id.slice(0, 8)}
+                      </Link>
                     </span>
                   </span>
                   <span>

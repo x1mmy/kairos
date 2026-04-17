@@ -1,14 +1,11 @@
 "use client"
 
-import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { FormEvent, useMemo, useState } from "react"
-import { createClient } from "@/utils/supabase/client"
 
 export default function LoginPage() {
   const searchParams = useSearchParams()
   const nextPath = useMemo(() => searchParams.get("next") ?? "/", [searchParams])
-  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,20 +15,21 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const response = await fetch("/api/auth/password-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password, next: nextPath }),
     })
+    const payload = await response.json().catch(() => ({}))
 
     setLoading(false)
 
-    if (signInError) {
-      setError(signInError.message)
+    if (!response.ok) {
+      setError(payload.error ?? "Incorrect password.")
       return
     }
 
-    window.location.href = nextPath
+    window.location.href = payload.next ?? nextPath
   }
 
   return (
@@ -39,25 +37,10 @@ export default function LoginPage() {
       <div className="w-full space-y-6 rounded-lg border border-slate-200 p-6 shadow-sm">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Sign in to Kairos</h1>
-          <p className="mt-1 text-sm text-slate-600">Use your work account credentials.</p>
+          <p className="mt-1 text-sm text-slate-600">Enter the app password to continue.</p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-slate-200 placeholder:text-slate-400 focus:ring-2"
-              placeholder="you@company.com"
-            />
-          </div>
-
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="password">
               Password
@@ -83,10 +66,9 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-
-        <Link className="block text-sm text-slate-600 underline" href="/login/forgot">
-          Forgot your password?
-        </Link>
+        <p className="text-xs text-slate-500">
+          Set <code>KAIROS_APP_PASSWORD</code> in <code>.env.local</code>.
+        </p>
       </div>
     </main>
   )

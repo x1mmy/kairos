@@ -1,9 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { formatCurrency } from "@/lib/format"
+import { useToast } from "@/components/ui/toast"
 
 const schema = z.object({
   period_id: z.string().uuid(),
@@ -28,15 +30,33 @@ type EntryFormProps = {
   payees: { id: string; name: string }[]
   periods: { id: string; name: string }[]
   attachments: { id: string; file_name: string; storage_path: string; storage_bucket: string }[]
-  insights: {
-    payeeInvoiced: number
-    payeeReady: number
-    budgetRemaining: number
+  insightData: {
+    payeeTotalsByKey: Record<string, { invoiced: number; ready: number }>
+    periodBudgets: Record<string, number>
+    periodSpend: Record<string, number>
   }
+  hasRequiredConfig?: boolean
+  requiredConfigMessage?: string
 }
 
-export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, attachments, insights }: EntryFormProps) {
+export function EntryForm({
+  mode,
+  entryId,
+  readOnly,
+  defaults,
+  payees,
+  periods,
+  attachments,
+  insightData = { payeeTotalsByKey: {}, periodBudgets: {}, periodSpend: {} },
+  hasRequiredConfig = true,
+  requiredConfigMessage,
+}: EntryFormProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const { pushToast } = useToast()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [savingMode, setSavingMode] = useState<"ready" | "draft" | null>(null)
   const [uploading, setUploading] = useState(false)
   const [attachmentItems, setAttachmentItems] = useState(attachments)
   const form = useForm<FormValues>({
@@ -45,29 +65,54 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
 
   const quantity = form.watch("quantity")
   const unitCost = form.watch("unit_cost")
+  const selectedPayeeId = form.watch("payee_id")
+  const selectedPeriodId = form.watch("period_id")
   const lineTotal = useMemo(() => Number(quantity || 0) * Number(unitCost || 0), [quantity, unitCost])
+  const insightKey = `${selectedPayeeId}|${selectedPeriodId}`
+  const payeeInvoiced = insightData.payeeTotalsByKey[insightKey]?.invoiced ?? 0
+  const payeeReady = insightData.payeeTotalsByKey[insightKey]?.ready ?? 0
+  const periodBudget = insightData.periodBudgets[selectedPeriodId] ?? 0
+  const periodSpent = insightData.periodSpend[selectedPeriodId] ?? 0
+  const budgetRemaining = periodBudget - periodSpent
+  const projectedRemaining = budgetRemaining - lineTotal
+
+  useEffect(() => {
+    if (searchParams.get("saved") !== "1") return
+    pushToast(
+      entryId ? "Entry saved. You can now upload attachments." : "Entry saved successfully.",
+      "success",
+    )
+    router.replace(pathname)
+  }, [entryId, pathname, pushToast, router, searchParams])
 
   const submit = form.handleSubmit(async (values) => {
+    if (!hasRequiredConfig) {
+      pushToast(requiredConfigMessage ?? "Please complete setup first.", "error")
+      return
+    }
     const parsed = schema.safeParse(values)
     if (!parsed.success) {
       setSubmitError("Please check the form fields.")
+      pushToast("Please check the form fields.", "error")
       return
     }
     setSubmitError(null)
+    const statusToSave = savingMode ?? "ready"
     const endpoint = mode === "create" ? "/api/log-entries" : `/api/log-entries/${entryId}`
     const method = mode === "create" ? "POST" : "PATCH"
     const response = await fetch(endpoint, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(parsed.data),
+      body: JSON.stringify({ ...parsed.data, status: statusToSave }),
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
       setSubmitError(payload.error ?? "Save failed")
+      pushToast(payload.error ?? "Save failed", "error")
       return
     }
     const id = mode === "create" ? payload.id : entryId
-    window.location.href = id ? `/log/${id}` : "/log"
+    window.location.href = id ? `/log/${id}?saved=1` : "/log"
   })
 
   const onUpload = async (file?: File) => {
@@ -80,7 +125,12 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
       body: formData,
     })
     setUploading(false)
-    if (!response.ok) return
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      pushToast(payload.error ?? "Attachment upload failed.", "error")
+      return
+    }
+    pushToast("Attachment uploaded.", "success")
     window.location.reload()
   }
 
@@ -88,7 +138,7 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
     if (!entryId) return
     const confirmed = window.confirm("Delete this attachment?")
     if (!confirmed) return
-    await fetch(`/api/entries/${entryId}/attachments`, {
+    const response = await fetch(`/api/entries/${entryId}/attachments`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -97,6 +147,12 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
         bucket: item.storage_bucket,
       }),
     })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      pushToast(payload.error ?? "Attachment delete failed.", "error")
+      return
+    }
+    pushToast("Attachment deleted.", "success")
     setAttachmentItems((prev) => prev.filter((row) => row.id !== item.id))
   }
 
@@ -104,6 +160,11 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <form className="space-y-4 rounded-lg border border-slate-200 bg-white p-5" onSubmit={submit}>
         <h2 className="text-lg font-semibold">{mode === "create" ? "New Entry" : "Edit Entry"}</h2>
+        {!hasRequiredConfig ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {requiredConfigMessage ?? "You need at least one payee and one budget period before creating entries."}
+          </div>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Title">
             <input {...form.register("title")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm" />
@@ -113,6 +174,7 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
           </Field>
           <Field label="Payee">
             <select {...form.register("payee_id")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm">
+              {payees.length === 0 ? <option value="">No payees available</option> : null}
               {payees.map((payee) => (
                 <option key={payee.id} value={payee.id}>
                   {payee.name}
@@ -122,6 +184,7 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
           </Field>
           <Field label="Period">
             <select {...form.register("period_id")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm">
+              {periods.length === 0 ? <option value="">No budget periods available</option> : null}
               {periods.map((period) => (
                 <option key={period.id} value={period.id}>
                   {period.name}
@@ -132,12 +195,7 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
           <Field label="Date">
             <input type="date" {...form.register("entry_date")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm" />
           </Field>
-          <Field label="Status">
-            <select {...form.register("status")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm">
-              <option value="draft">Draft</option>
-              <option value="ready">Ready</option>
-            </select>
-          </Field>
+          <input type="hidden" {...form.register("status")} />
           <Field label="Quantity">
             <input type="number" step="0.01" {...form.register("quantity")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm" />
           </Field>
@@ -152,9 +210,24 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
           <textarea {...form.register("notes")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm" rows={3} />
         </Field>
         {!readOnly ? (
-          <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">
-            Save Entry
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={!hasRequiredConfig}
+              onClick={() => setSavingMode("ready")}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save Entry
+            </button>
+            <button
+              type="submit"
+              disabled={!hasRequiredConfig}
+              onClick={() => setSavingMode("draft")}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save as Draft
+            </button>
+          </div>
         ) : null}
         {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
       </form>
@@ -163,9 +236,10 @@ export function EntryForm({ mode, entryId, readOnly, defaults, payees, periods, 
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
           <h3 className="font-semibold">Summary</h3>
           <p className="mt-2">Line total: {formatCurrency(lineTotal)}</p>
-          <p>Payee invoiced: {formatCurrency(insights.payeeInvoiced)}</p>
-          <p>Payee ready: {formatCurrency(insights.payeeReady)}</p>
-          <p>Budget remaining: {formatCurrency(insights.budgetRemaining)}</p>
+          <p>Payee invoiced: {formatCurrency(payeeInvoiced)}</p>
+          <p>Payee ready: {formatCurrency(payeeReady)}</p>
+          <p>Budget remaining: {formatCurrency(budgetRemaining)}</p>
+          <p className="text-xs text-slate-500">Projected remaining: {formatCurrency(projectedRemaining)}</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
           <h3 className="font-semibold">Attachments</h3>

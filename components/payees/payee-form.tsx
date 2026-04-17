@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useToast } from "@/components/ui/toast"
 
 const schema = z.object({
   name: z.string().min(1),
@@ -28,6 +29,7 @@ export function PayeeForm({
   payeeId?: string
   defaults: FormValues
 }) {
+  const { pushToast } = useToast()
   const form = useForm<FormValues>({ defaultValues: defaults })
   const [error, setError] = useState<string | null>(null)
 
@@ -48,8 +50,10 @@ export function PayeeForm({
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
       setError(payload.error ?? "Save failed")
+      pushToast(payload.error ?? "Save failed", "error")
       return
     }
+    pushToast("Payee saved successfully.", "success")
     window.location.href = mode === "create" ? `/payees/${payload.id}` : `/payees/${payeeId}`
   })
 

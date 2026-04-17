@@ -22,7 +22,7 @@ export default async function LogPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from("log_entries")
-    .select("id,title,category,entry_date,quantity,unit_cost,line_total,status,payee:payees(name)", {
+    .select("id,title,category,entry_date,quantity,unit_cost,line_total,status,payee:payees(name),period:budget_periods(name)", {
       count: "exact",
     })
     .order("entry_date", { ascending: false })

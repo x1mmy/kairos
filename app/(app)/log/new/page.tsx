@@ -3,11 +3,25 @@ import { createClient } from "@/utils/supabase/server"
 
 export default async function NewLogEntryPage() {
   const supabase = createClient()
-  const [{ data: payees }, { data: periods }, { data: currentPeriod }] = await Promise.all([
+  const [{ data: payees }, { data: periods }, { data: currentPeriod }, { data: aggregates }] = await Promise.all([
     supabase.from("payees").select("id,name").eq("is_active", true).order("name"),
-    supabase.from("budget_periods").select("id,name").order("start_date", { ascending: false }),
+    supabase.from("budget_periods").select("id,name,budget_amount").order("start_date", { ascending: false }),
     supabase.from("budget_periods").select("id,name,budget_amount").eq("is_current", true).maybeSingle(),
+    supabase.from("log_entries").select("payee_id,period_id,status,line_total").in("status", ["ready", "invoiced"]),
   ])
+
+  const payeeTotalsByKey: Record<string, { invoiced: number; ready: number }> = {}
+  const periodSpend: Record<string, number> = {}
+  const periodBudgets: Record<string, number> = Object.fromEntries(
+    (periods ?? []).map((period) => [period.id, Number(period.budget_amount ?? 0)]),
+  )
+  for (const row of aggregates ?? []) {
+    const key = `${row.payee_id}|${row.period_id}`
+    if (!payeeTotalsByKey[key]) payeeTotalsByKey[key] = { invoiced: 0, ready: 0 }
+    if (row.status === "invoiced") payeeTotalsByKey[key].invoiced += Number(row.line_total)
+    if (row.status === "ready") payeeTotalsByKey[key].ready += Number(row.line_total)
+    periodSpend[row.period_id] = (periodSpend[row.period_id] ?? 0) + Number(row.line_total)
+  }
 
   return (
     <EntryForm
@@ -27,11 +41,17 @@ export default async function NewLogEntryPage() {
         unit_cost: 0,
         status: "draft",
       }}
-      insights={{
-        payeeInvoiced: 0,
-        payeeReady: 0,
-        budgetRemaining: Number(currentPeriod?.budget_amount ?? 0),
+      insightData={{
+        payeeTotalsByKey,
+        periodBudgets,
+        periodSpend,
       }}
+      hasRequiredConfig={(payees?.length ?? 0) > 0 && (periods?.length ?? 0) > 0}
+      requiredConfigMessage={
+        (payees?.length ?? 0) === 0
+          ? "No payees found. Create a payee first."
+          : "No budget periods found. Save budget setup in Settings first."
+      }
     />
   )
 }

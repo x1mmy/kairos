@@ -1,17 +1,25 @@
 "use client"
 
 import { useState } from "react"
+import { useToast } from "@/components/ui/toast"
 
 export function PayeeInvoiceStatusActions({ id, status }: { id: string; status: string }) {
+  const { pushToast } = useToast()
   const [loading, setLoading] = useState(false)
   const update = async (next: "issued" | "paid") => {
     setLoading(true)
-    await fetch(`/api/invoices/payee/${id}`, {
+    const response = await fetch(`/api/invoices/payee/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: next }),
     })
     setLoading(false)
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      pushToast(payload.error ?? "Status update failed.", "error")
+      return
+    }
+    pushToast(`Invoice marked as ${next}.`, "success")
     window.location.reload()
   }
 
@@ -29,6 +37,7 @@ export function PayeeInvoiceStatusActions({ id, status }: { id: string; status: 
 }
 
 export function SummaryStatusActions({ id, status }: { id: string; status: string }) {
+  const { pushToast } = useToast()
   const [loading, setLoading] = useState(false)
   return (
     <div className="flex gap-2">
@@ -37,11 +46,18 @@ export function SummaryStatusActions({ id, status }: { id: string; status: strin
         disabled={loading}
         onClick={async () => {
           setLoading(true)
-          await fetch(`/api/invoices/summary/${id}`, {
+          const response = await fetch(`/api/invoices/summary/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: "finalised" }),
           })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}))
+            pushToast(payload.error ?? "Summary finalisation failed.", "error")
+            setLoading(false)
+            return
+          }
+          pushToast("Summary marked as finalised.", "success")
           window.location.reload()
         }}
         className="rounded-md border px-3 py-1.5 text-sm"

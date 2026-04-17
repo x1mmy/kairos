@@ -1,14 +1,35 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/utils/supabase/server"
+import { cookies } from "next/headers"
+import { getAppPassword, PASSWORD_COOKIE_NAME } from "@/lib/password-auth"
+import { createAdminClient } from "@/utils/supabase/admin"
+
+const SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000001"
 
 export async function requireApiUser() {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
+  const cookieValue = cookies().get(PASSWORD_COOKIE_NAME)?.value
+  const expected = getAppPassword()
+  const supabase = createAdminClient()
+
+  if (!cookieValue || !expected || cookieValue !== expected) {
     return { supabase, error: NextResponse.json({ error: "Unauthenticated", code: "AUTH_REQUIRED" }, { status: 401 }) }
   }
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
-  return { supabase, user, role: profile?.role as "admin" | "staff" | undefined, error: null as NextResponse | null }
+
+  await supabase.from("profiles").upsert(
+    {
+      id: SYSTEM_PROFILE_ID,
+      full_name: "Internal System Admin",
+      role: "admin",
+    },
+    { onConflict: "id" },
+  )
+
+  const { data: actor } = await supabase.from("profiles").select("id,role").eq("id", SYSTEM_PROFILE_ID).maybeSingle()
+  const role = (actor?.role as "admin" | "staff" | undefined) ?? "admin"
+
+  return {
+    supabase,
+    user: { id: SYSTEM_PROFILE_ID },
+    role,
+    error: null as NextResponse | null,
+  }
 }

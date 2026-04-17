@@ -1,20 +1,18 @@
 import { redirect } from "next/navigation"
 import { AppShell } from "@/components/layout/app-shell"
-import { createClient } from "@/utils/supabase/server"
+import { hasPasswordSession } from "@/lib/password-auth"
+
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export default async function AuthenticatedLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  if (!hasPasswordSession()) {
     redirect("/login")
   }
 
-  return <AppShell userEmail={user.email}>{children}</AppShell>
+  return <AppShell userEmail="Internal User">{children}</AppShell>
 }

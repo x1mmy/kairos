@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server"
 
 export default async function EditLogEntryPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
-  const [{ data: entry }, { data: payees }, { data: periods }, { data: attachments }] = await Promise.all([
+  const [{ data: entry }, { data: payees }, { data: periods }, { data: attachments }, { data: aggregates }] = await Promise.all([
     supabase
       .from("log_entries")
       .select("id,period_id,payee_id,title,category,entry_date,description,notes,quantity,unit_cost,status")
@@ -17,15 +17,23 @@ export default async function EditLogEntryPage({ params }: { params: { id: strin
       .select("id,file_name,storage_path,storage_bucket")
       .eq("log_entry_id", params.id)
       .order("created_at", { ascending: false }),
+    supabase.from("log_entries").select("payee_id,period_id,status,line_total").in("status", ["ready", "invoiced"]),
   ])
 
   if (!entry) notFound()
 
-  const [payeeInvoiced, payeeReady, currentPeriod] = await Promise.all([
-    sumByStatus(supabase, entry.payee_id, entry.period_id, "invoiced"),
-    sumByStatus(supabase, entry.payee_id, entry.period_id, "ready"),
-    supabase.from("budget_periods").select("budget_amount").eq("id", entry.period_id).maybeSingle(),
-  ])
+  const payeeTotalsByKey: Record<string, { invoiced: number; ready: number }> = {}
+  const periodSpend: Record<string, number> = {}
+  const periodBudgets: Record<string, number> = Object.fromEntries(
+    (periods ?? []).map((period) => [period.id, Number(period.budget_amount ?? 0)]),
+  )
+  for (const row of aggregates ?? []) {
+    const key = `${row.payee_id}|${row.period_id}`
+    if (!payeeTotalsByKey[key]) payeeTotalsByKey[key] = { invoiced: 0, ready: 0 }
+    if (row.status === "invoiced") payeeTotalsByKey[key].invoiced += Number(row.line_total)
+    if (row.status === "ready") payeeTotalsByKey[key].ready += Number(row.line_total)
+    periodSpend[row.period_id] = (periodSpend[row.period_id] ?? 0) + Number(row.line_total)
+  }
 
   return (
     <EntryForm
@@ -47,26 +55,11 @@ export default async function EditLogEntryPage({ params }: { params: { id: strin
         unit_cost: Number(entry.unit_cost),
         status: entry.status === "invoiced" ? "ready" : entry.status,
       }}
-      insights={{
-        payeeInvoiced,
-        payeeReady,
-        budgetRemaining: Number(currentPeriod.data?.budget_amount ?? 0) - (payeeInvoiced + payeeReady),
+      insightData={{
+        payeeTotalsByKey,
+        periodBudgets,
+        periodSpend,
       }}
     />
   )
-}
-
-async function sumByStatus(
-  supabase: ReturnType<typeof createClient>,
-  payeeId: string,
-  periodId: string,
-  status: "ready" | "invoiced",
-) {
-  const { data } = await supabase
-    .from("log_entries")
-    .select("line_total")
-    .eq("payee_id", payeeId)
-    .eq("period_id", periodId)
-    .eq("status", status)
-  return (data ?? []).reduce((sum, row) => sum + Number(row.line_total), 0)
 }

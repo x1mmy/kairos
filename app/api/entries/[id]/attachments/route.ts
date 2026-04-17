@@ -22,6 +22,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const bucket = "attachments"
   const storagePath = `${params.id}/${Date.now()}-${file.name}`
   const admin = createAdminClient()
+  const existingBuckets = await admin.storage.listBuckets()
+  const hasBucket = (existingBuckets.data ?? []).some((item) => item.name === bucket)
+  if (!hasBucket) {
+    const createBucket = await admin.storage.createBucket(bucket, { public: false })
+    if (createBucket.error) {
+      return NextResponse.json({ error: createBucket.error.message, code: "BUCKET_CREATE_FAILED" }, { status: 400 })
+    }
+  }
+
   const upload = await admin.storage.from(bucket).upload(storagePath, file, { upsert: false })
   if (upload.error) {
     return NextResponse.json({ error: upload.error.message, code: "UPLOAD_FAILED" }, { status: 400 })

@@ -1,18 +1,26 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/utils/supabase/server"
+import { createAdminClient } from "@/utils/supabase/admin"
+import { hasPasswordSession } from "@/lib/password-auth"
 
 export type UserRole = "admin" | "staff"
+const SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000001"
 
 export async function getSessionUser() {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  return user
+  if (!hasPasswordSession()) return null
+  const supabase = createAdminClient()
+  await supabase.from("profiles").upsert(
+    {
+      id: SYSTEM_PROFILE_ID,
+      full_name: "Internal System Admin",
+      role: "admin",
+    },
+    { onConflict: "id" },
+  )
+  return { id: SYSTEM_PROFILE_ID }
 }
 
 export async function getCurrentUserWithRole() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const user = await getSessionUser()
   if (!user) return { user: null, role: null as UserRole | null }
 
