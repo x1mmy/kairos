@@ -11,7 +11,7 @@ type SidebarProps = {
 const navSections = [
   {
     label: "Overview",
-    items: [{ label: "Dashboard", href: "/app" }],
+    items: [{ label: "Dashboard", href: "/" }],
   },
   {
     label: "Work",

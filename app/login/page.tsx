@@ -7,7 +7,7 @@ import { createClient } from "@/utils/supabase/client"
 
 export default function LoginPage() {
   const searchParams = useSearchParams()
-  const nextPath = useMemo(() => searchParams.get("next") ?? "/app", [searchParams])
+  const nextPath = useMemo(() => searchParams.get("next") ?? "/", [searchParams])
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
