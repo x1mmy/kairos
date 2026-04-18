@@ -1,9 +1,9 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, Suspense, useMemo, useState } from "react"
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams()
   const nextPath = useMemo(() => searchParams.get("next") ?? "/", [searchParams])
   const [password, setPassword] = useState("")
@@ -71,5 +71,21 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
+          <div className="w-full space-y-6 rounded-lg border border-slate-200 p-6 shadow-sm">
+            <p className="text-sm text-slate-600">Loading…</p>
+          </div>
+        </main>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   )
 }
