@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { validateImageAttachment } from "@/lib/attachment-images"
 import { formatCurrency } from "@/lib/format"
 import { useToast } from "@/components/ui/toast"
 
@@ -59,6 +60,7 @@ export function EntryForm({
   const [savingMode, setSavingMode] = useState<"ready" | "draft" | null>(null)
   const [uploading, setUploading] = useState(false)
   const [attachmentItems, setAttachmentItems] = useState(attachments)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const form = useForm<FormValues>({
     defaultValues: defaults,
   })
@@ -117,6 +119,12 @@ export function EntryForm({
 
   const onUpload = async (file?: File) => {
     if (!file || !entryId) return
+    const invalid = validateImageAttachment(file)
+    if (invalid) {
+      pushToast(invalid, "error")
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      return
+    }
     setUploading(true)
     const formData = new FormData()
     formData.append("file", file)
@@ -130,7 +138,8 @@ export function EntryForm({
       pushToast(payload.error ?? "Attachment upload failed.", "error")
       return
     }
-    pushToast("Attachment uploaded.", "success")
+    pushToast("Image uploaded.", "success")
+    if (fileInputRef.current) fileInputRef.current.value = ""
     window.location.reload()
   }
 
@@ -157,7 +166,7 @@ export function EntryForm({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <form className="space-y-4 rounded-lg border border-slate-200 bg-white p-5" onSubmit={submit}>
         <h2 className="text-lg font-semibold">{mode === "create" ? "New Entry" : "Edit Entry"}</h2>
         {!hasRequiredConfig ? (
@@ -210,12 +219,12 @@ export function EntryForm({
           <textarea {...form.register("notes")} disabled={readOnly} className="w-full rounded-md border px-3 py-2 text-sm" rows={3} />
         </Field>
         {!readOnly ? (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="submit"
               disabled={!hasRequiredConfig}
               onClick={() => setSavingMode("ready")}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md bg-slate-900 px-3 py-2.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
             >
               Save Entry
             </button>
@@ -223,7 +232,7 @@ export function EntryForm({
               type="submit"
               disabled={!hasRequiredConfig}
               onClick={() => setSavingMode("draft")}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-slate-300 px-3 py-2.5 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
             >
               Save as Draft
             </button>
@@ -246,10 +255,12 @@ export function EntryForm({
           {entryId ? (
             <>
               {!readOnly ? (
-                <label className="mt-2 block cursor-pointer rounded-md border border-dashed border-slate-300 p-3 text-center text-xs text-slate-500">
-                  {uploading ? "Uploading..." : "Drag/drop substitute: choose file"}
+                <label className="mt-2 block min-h-[44px] cursor-pointer rounded-md border border-dashed border-slate-300 p-3 text-center text-xs text-slate-500">
+                  {uploading ? "Uploading…" : "Tap to choose image (receipt, photo)"}
                   <input
+                    ref={fileInputRef}
                     type="file"
+                    accept="image/*,.heic,.heif"
                     className="hidden"
                     onChange={(event) => {
                       const file = event.target.files?.[0]
@@ -260,10 +271,36 @@ export function EntryForm({
               ) : null}
               <ul className="mt-3 space-y-2">
                 {attachmentItems.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5">
-                    <span className="truncate text-xs">{item.file_name}</span>
+                  <li key={item.id} className="flex flex-col gap-2 rounded border border-slate-100 px-2 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex flex-col gap-1">
+                      <span className="break-all text-xs font-medium text-slate-800">{item.file_name}</span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                        <a
+                          className="text-slate-700 underline decoration-slate-400 underline-offset-2 hover:text-slate-900"
+                          href={`/api/attachments/${item.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open
+                        </a>
+                        <span className="text-slate-300 select-none" aria-hidden>
+                          |
+                        </span>
+                        <a
+                          className="text-slate-700 underline decoration-slate-400 underline-offset-2 hover:text-slate-900"
+                          href={`/api/attachments/${item.id}?download=1`}
+                          rel="noreferrer"
+                        >
+                          Download
+                        </a>
+                      </div>
+                    </div>
                     {!readOnly ? (
-                      <button type="button" className="text-xs text-red-600" onClick={() => removeAttachment(item)}>
+                      <button
+                        type="button"
+                        className="self-start text-xs text-red-600 sm:self-center"
+                        onClick={() => removeAttachment(item)}
+                      >
                         Delete
                       </button>
                     ) : null}

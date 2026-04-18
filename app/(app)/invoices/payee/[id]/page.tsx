@@ -31,8 +31,8 @@ export default async function PayeeInvoiceViewPage({ params }: { params: { id: s
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">{invoice.invoice_number}</h2>
           <p className="text-sm text-slate-500">Issued {formatDate(invoice.issued_date)}</p>
         </div>
@@ -47,7 +47,8 @@ export default async function PayeeInvoiceViewPage({ params }: { params: { id: s
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <table className="w-full text-sm">
+        <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+          <table className="w-full min-w-[520px] text-sm">
           <thead className="text-left text-slate-500">
             <tr>
               <th className="py-2">Description</th>
@@ -67,6 +68,7 @@ export default async function PayeeInvoiceViewPage({ params }: { params: { id: s
             ))}
           </tbody>
         </table>
+        </div>
         <div className="mt-4 space-y-1 text-sm">
           <p>Subtotal: {formatCurrency(Number(invoice.subtotal_amount))}</p>
           <p>GST: {formatCurrency(Number(invoice.gst_amount))}</p>
@@ -75,18 +77,39 @@ export default async function PayeeInvoiceViewPage({ params }: { params: { id: s
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-base font-semibold">Attachments</h3>
-          <a href={`/api/invoices/payee/${invoice.id}/pdf`} className="rounded-md border px-3 py-1.5 text-sm">
+          <a
+            href={`/api/invoices/payee/${invoice.id}/pdf`}
+            className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium sm:h-auto sm:py-1.5"
+          >
             Download PDF
           </a>
         </div>
-        <ul className="space-y-2 text-sm">
+        <ul className="space-y-3 text-sm">
           {(attachments ?? []).map((attachment) => (
-            <li key={attachment.id}>
-              <a className="underline" href="#">
-                {attachment.file_name}
-              </a>
+            <li key={attachment.id} className="rounded-md border border-slate-100 px-3 py-2">
+              <p className="break-all font-medium text-slate-800">{attachment.file_name}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                <a
+                  className="text-slate-700 underline decoration-slate-400 underline-offset-2 hover:text-slate-900"
+                  href={`/api/attachments/${attachment.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open
+                </a>
+                <span className="text-slate-300 select-none" aria-hidden>
+                  |
+                </span>
+                <a
+                  className="text-slate-700 underline decoration-slate-400 underline-offset-2 hover:text-slate-900"
+                  href={`/api/attachments/${attachment.id}?download=1`}
+                  rel="noreferrer"
+                >
+                  Download
+                </a>
+              </div>
             </li>
           ))}
           {(attachments ?? []).length === 0 ? <li className="text-slate-500">No attachments linked.</li> : null}

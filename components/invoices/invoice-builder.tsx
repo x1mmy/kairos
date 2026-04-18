@@ -74,10 +74,14 @@ export function InvoiceBuilder({ periodId, entries, budgetAmount }: { periodId: 
             <summary className="cursor-pointer text-sm font-semibold">{rows[0]?.payee_name ?? "Payee"}</summary>
             <div className="mt-3 space-y-2">
               {rows.map((row) => (
-                <label key={row.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-100 px-3 py-2 text-sm">
-                  <span className="flex items-center gap-3">
+                <label
+                  key={row.id}
+                  className="flex flex-col gap-3 rounded-md border border-slate-100 px-3 py-3 text-sm sm:flex-row sm:items-start sm:justify-between"
+                >
+                  <span className="flex min-w-0 items-start gap-3">
                     <input
                       type="checkbox"
+                      className="mt-1 shrink-0"
                       checked={Boolean(selected[row.id])}
                       onChange={(event) =>
                         setSelected((prev) => ({
@@ -86,14 +90,16 @@ export function InvoiceBuilder({ periodId, entries, budgetAmount }: { periodId: 
                         }))
                       }
                     />
-                    <span className="flex flex-col">
-                      {row.title} · {formatDate(row.entry_date)}
+                    <span className="min-w-0 flex flex-col">
+                      <span className="font-medium text-slate-900">
+                        {row.title} · {formatDate(row.entry_date)}
+                      </span>
                       <Link href={`/log/${row.id}`} className="text-xs text-slate-500 underline">
                         Source entry: {row.id.slice(0, 8)}
                       </Link>
                     </span>
                   </span>
-                  <span>
+                  <span className="shrink-0 pl-8 text-slate-700 sm:pl-0 sm:text-right">
                     {Number(row.quantity)} × {formatCurrency(Number(row.unit_cost))} = {formatCurrency(Number(row.line_total))}
                   </span>
                 </label>
@@ -103,7 +109,7 @@ export function InvoiceBuilder({ periodId, entries, budgetAmount }: { periodId: 
         ))}
       </div>
 
-      <aside className="sticky top-24 h-fit space-y-4">
+      <aside className="h-fit space-y-4 lg:sticky lg:top-24">
         <div className={`rounded-md px-3 py-2 text-sm ${alertClass}`}>
           Budget usage: {pct.toFixed(1)}% ({formatCurrency(runTotal)} / {formatCurrency(budgetAmount)})
         </div>

@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
   html,
   body {
     @apply bg-slate-50 text-slate-900 font-sans;

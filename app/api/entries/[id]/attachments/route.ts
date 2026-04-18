@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { validateImageAttachment, safeStorageFileSegment } from "@/lib/attachment-images"
 import { requireApiUser } from "@/lib/api-auth"
 import { createAdminClient } from "@/utils/supabase/admin"
 
@@ -19,8 +20,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: "Missing file", code: "FILE_REQUIRED" }, { status: 400 })
   }
 
+  const imageError = validateImageAttachment(file)
+  if (imageError) {
+    return NextResponse.json({ error: imageError, code: "INVALID_IMAGE" }, { status: 400 })
+  }
+
   const bucket = "attachments"
-  const storagePath = `${params.id}/${Date.now()}-${file.name}`
+  const storagePath = `${params.id}/${Date.now()}-${safeStorageFileSegment(file.name)}`
   const admin = createAdminClient()
   const existingBuckets = await admin.storage.listBuckets()
   const hasBucket = (existingBuckets.data ?? []).some((item) => item.name === bucket)
@@ -31,7 +37,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   }
 
-  const upload = await admin.storage.from(bucket).upload(storagePath, file, { upsert: false })
+  const upload = await admin.storage.from(bucket).upload(storagePath, file, {
+    upsert: false,
+    contentType: file.type || "application/octet-stream",
+  })
   if (upload.error) {
     return NextResponse.json({ error: upload.error.message, code: "UPLOAD_FAILED" }, { status: 400 })
   }

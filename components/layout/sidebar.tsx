@@ -33,11 +33,19 @@ const navSections = [
   },
 ] as const
 
+function isNavActive(pathname: string, href: string) {
+  if (pathname === href) return true
+  if (!pathname.startsWith(`${href}/`)) return false
+  // Sibling routes: list page is /invoices, builder is /invoices/new — do not mark both active.
+  if (href === "/invoices" && pathname.startsWith("/invoices/new")) return false
+  return true
+}
+
 export function Sidebar({ email, onNavigate }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <aside className="flex h-full w-72 flex-col border-r border-slate-200 bg-white p-4">
+    <aside className="flex min-h-screen w-72 flex-col border-r border-slate-200 bg-white p-4">
       <div className="mb-6 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm">
         KAIROS
       </div>
@@ -49,11 +57,12 @@ export function Sidebar({ email, onNavigate }: SidebarProps) {
               {section.label}
             </p>
             {section.items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+              const active = isNavActive(pathname, item.href)
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   onClick={onNavigate}
                   className={`block rounded-md px-3 py-2 transition ${
                     active

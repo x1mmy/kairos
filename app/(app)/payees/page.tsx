@@ -25,14 +25,60 @@ export default async function PayeesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold tracking-tight">Payees</h2>
-        <Link href="/payees/new" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">
+        <Link
+          href="/payees/new"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white sm:shrink-0"
+        >
           New Payee
         </Link>
       </div>
-      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-        <table className="w-full min-w-[1000px] text-sm">
+
+      <ul className="space-y-3 md:hidden">
+        {rows.map((row) => (
+          <li key={row.id} className="rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <Link className="font-medium text-slate-900 underline" href={`/payees/${row.id}`}>
+                {row.name}
+              </Link>
+              <span className="shrink-0 text-xs text-slate-500">{row.apply_gst ? "GST" : "No GST"}</span>
+            </div>
+            <dl className="mt-3 space-y-2 text-xs text-slate-600">
+              <div>
+                <dt className="text-slate-400">Email</dt>
+                <dd className="break-all text-slate-800">{row.email ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Category</dt>
+                <dd>{row.default_category ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Rate</dt>
+                <dd>
+                  {row.rate_type} · {formatCurrency(Number(row.default_rate))}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">All-time invoiced</dt>
+                <dd className="font-semibold text-slate-900">{formatCurrency(row.allTime)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Last invoice</dt>
+                <dd>{formatDate(row.lastInvoiceDate)}</dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+        {rows.length === 0 ? (
+          <li className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+            No active payees yet.
+          </li>
+        ) : null}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white md:block">
+        <table className="w-full min-w-[880px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
               <th className="px-3 py-2">Name</th>
@@ -75,3 +121,4 @@ export default async function PayeesPage() {
     </div>
   )
 }
+

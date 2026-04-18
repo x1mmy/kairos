@@ -34,14 +34,12 @@ export async function POST(request: Request) {
   }
 
   const generatedInvoiceIds: string[] = []
-  let runningTotal = 0
   let invoiceCounter = 1
 
   for (const [payeeId, payeeEntries] of Array.from(groups.entries())) {
     const subtotal = payeeEntries.reduce((sum: number, row: (typeof payeeEntries)[number]) => sum + Number(row.line_total), 0)
     const gst = subtotal * 0.1
     const total = subtotal + gst
-    runningTotal += total
     const invoiceNumber = `KAI-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}-${invoiceCounter}`
     invoiceCounter += 1
 
@@ -73,23 +71,6 @@ export async function POST(request: Request) {
     const { error: lineError } = await auth.supabase.from("invoice_line_items").insert(lineItems)
     if (lineError) return NextResponse.json({ error: lineError.message, code: "LINE_ITEMS_FAILED" }, { status: 400 })
   }
-
-  const { data: period } = await auth.supabase.from("budget_periods").select("budget_amount").eq("id", periodId).maybeSingle()
-  const budgetAmount = Number(period?.budget_amount ?? 0)
-  const varianceAmount = budgetAmount - runningTotal
-  const percentOfBudget = budgetAmount > 0 ? runningTotal / budgetAmount : 0
-
-  const { error: summaryError } = await auth.supabase.from("internal_summaries").insert({
-    period_id: periodId,
-    summary_number: `SUM-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
-    total_spend: runningTotal,
-    budget_amount: budgetAmount,
-    variance_amount: varianceAmount,
-    percent_of_budget: percentOfBudget,
-    status: "draft",
-    created_by: auth.user!.id,
-  })
-  if (summaryError) return NextResponse.json({ error: summaryError.message, code: "SUMMARY_CREATE_FAILED" }, { status: 400 })
 
   const { error: updateError } = await auth.supabase.from("log_entries").update({ status: "invoiced" }).in("id", entryIds)
   if (updateError) return NextResponse.json({ error: updateError.message, code: "ENTRY_UPDATE_FAILED" }, { status: 400 })

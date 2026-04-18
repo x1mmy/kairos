@@ -1,4 +1,6 @@
 import Link from "next/link"
+import { unstable_noStore as noStore } from "next/cache"
+import { DashboardMountRefresh } from "@/components/dashboard/dashboard-mount-refresh"
 import { createClient } from "@/utils/supabase/server"
 import { formatCurrency, formatDate } from "@/lib/format"
 
@@ -18,6 +20,7 @@ type LogEntry = {
 }
 
 export default async function DashboardPage() {
+  noStore()
   const supabase = createClient()
   const { data: currentPeriod } = await supabase
     .from("budget_periods")
@@ -27,9 +30,12 @@ export default async function DashboardPage() {
 
   if (!currentPeriod) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600">
-        No current budget period found. Create a period in Settings to start tracking.
-      </div>
+      <>
+        <DashboardMountRefresh />
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600">
+          No current budget period found. Create a period in Settings to start tracking.
+        </div>
+      </>
     )
   }
 
@@ -68,8 +74,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DashboardMountRefresh />
       <section className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900">{currentPeriod.name} Budget Summary</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Budget overview</h2>
+        <p className="mt-1 text-sm text-slate-600">{currentPeriod.name}</p>
         <div className="mt-4 grid gap-3 text-sm md:grid-cols-4">
           <Metric label="Invoiced" value={formatCurrency(invoiced)} />
           <Metric label="Ready" value={formatCurrency(ready)} />
@@ -125,7 +133,7 @@ export default async function DashboardPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-900">Recent Entries</h3>
-          <Link className="text-sm text-slate-700 underline" href="/log">
+          <Link prefetch={false} className="text-sm text-slate-700 underline" href="/log">
             View all
           </Link>
         </div>

@@ -43,14 +43,17 @@ export default async function LogPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold tracking-tight text-slate-900">Entry Log</h2>
-        <Link className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white" href="/log/new">
+        <Link
+          className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white sm:shrink-0"
+          href="/log/new"
+        >
           New Entry
         </Link>
       </div>
 
-      <form className="grid gap-3 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-4">
+      <form className="grid gap-3 rounded-md border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
         <input
           name="q"
           defaultValue={searchParams.q}
@@ -79,7 +82,7 @@ export default async function LogPage({ searchParams }: PageProps) {
             </option>
           ))}
         </select>
-        <div className="md:col-span-4">
+        <div className="sm:col-span-2 lg:col-span-4">
           <button className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" type="submit">
             Apply filters
           </button>
@@ -88,11 +91,11 @@ export default async function LogPage({ searchParams }: PageProps) {
 
       <LogTable rows={rows ?? []} />
 
-      <div className="flex items-center justify-between text-sm text-slate-600">
+      <div className="flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <span>
           Page {page} of {totalPages}
         </span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             href={`/log?page=${Math.max(1, page - 1)}`}
             className={`rounded-md border px-3 py-1.5 ${page <= 1 ? "pointer-events-none opacity-50" : "border-slate-300"}`}
